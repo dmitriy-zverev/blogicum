@@ -16,7 +16,7 @@
                         Дата: {{ post.date }}
                     </li>
                     <li>
-                        Категория: <a href="{% url 'blog:category' post.category %}">{{ post.category }}</a>
+                        Категория: <a href="{% url 'blog:category_posts' post.category %}">{{ post.category }}</a>
                     </li>
                     <p>
                         {{ post.text|truncatewords:10 }}
