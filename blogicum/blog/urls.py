@@ -43,6 +43,11 @@ urlpatterns = [
         name='post_detail',
     ),
     path(
+        'posts/<int:pk>/edit/',
+        views.PostEditView.as_view(),
+        name='edit_post',
+    ),
+    path(
         'profile/<slug:username>/',
         views.ProfileListView.as_view(),
         name='profile',

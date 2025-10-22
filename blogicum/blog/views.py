@@ -122,6 +122,28 @@ class PostDeleteView(LoginRequiredMixin, DeleteView):
         return context
 
 
+class PostEditView(LoginRequiredMixin, UpdateView):
+    model = Post
+    form_class = PostForm
+    template_name = 'blog/create.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        post = get_object_or_404(
+            Post,
+            pk=kwargs['pk'],
+            author=request.user,
+        )
+        if post.author != request.user:
+            return redirect('blog:posts', pk=post.pk)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        return reverse(
+            'blog:post_detail',
+            kwargs={'pk': self.object.pk},
+        )
+
+
 class ProfileListView(ListView):
     model = Post
     slug_field = 'username'
