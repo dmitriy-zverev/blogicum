@@ -44,7 +44,7 @@ urlpatterns = [
     ),
     path(
         'profile/<slug:username>/',
-        views.ProfileDetailView.as_view(),
+        views.ProfileListView.as_view(),
         name='profile',
     ),
     path(

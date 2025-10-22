@@ -1,6 +1,7 @@
 from datetime import datetime
 from django.shortcuts import get_object_or_404, reverse
 from django.contrib.auth import get_user_model
+from django.core.paginator import Paginator
 from django.urls import reverse_lazy
 from django.db.models import Q
 from django.views.generic import (
@@ -121,12 +122,12 @@ class PostDeleteView(LoginRequiredMixin, DeleteView):
         return context
 
 
-class ProfileDetailView(DetailView):
-    posts = None
-    model = User
+class ProfileListView(ListView):
+    model = Post
     slug_field = 'username'
     slug_url_kwarg = 'username'
     template_name = 'blog/profile.html'
+    paginate_by = 10
 
     def dispatch(self, request, *args, **kwargs):
         self.username = kwargs.get('username')
@@ -134,7 +135,10 @@ class ProfileDetailView(DetailView):
             User,
             username=self.username,
         )
-        self.posts = Post.objects.select_related(
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return Post.objects.select_related(
             'location',
             'category',
             'author',
@@ -143,11 +147,9 @@ class ProfileDetailView(DetailView):
             is_published=True,
             pub_date__lte=datetime.now(),
         ).order_by('-pub_date')
-        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['page_obj'] = self.posts
         context['profile'] = self.profile
         return context
 
