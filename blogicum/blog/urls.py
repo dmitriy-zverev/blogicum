@@ -13,7 +13,7 @@ urlpatterns = [
         name='add_comment',
     ),
     path(
-        'create/',
+        'posts/create/',
         views.PostCreateView.as_view(),
         name='create',
     ),

@@ -159,3 +159,4 @@ db.json
 pytest.ini
 .flake8
 ./tests/
+sent_emails/

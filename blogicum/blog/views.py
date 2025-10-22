@@ -1,5 +1,6 @@
 from datetime import datetime
 from django.shortcuts import get_object_or_404, reverse
+from django.db.models import Count
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator
 from django.urls import reverse_lazy
@@ -32,14 +33,23 @@ class PostListView(ListView):
         is_published=True,
         category__is_published=True,
         pub_date__lte=datetime.now(),
-    )
+    ).annotate(comment_count=Count('comments'))
     ordering = '-pub_date'
-    paginate_by = 10
+    paginate_by = 20
 
 
 class PostDetailView(DetailView):
     model = Post
     template_name = 'blog/detail.html'
+    queryset = Post.objects.select_related(
+        'location',
+        'category',
+        'author',
+    ).filter(
+        is_published=True,
+        category__is_published=True,
+        pub_date__lte=datetime.now(),
+    )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -51,7 +61,7 @@ class PostDetailView(DetailView):
 class CategoryListView(ListView):
     model = Post
     template_name = 'blog/category.html'
-    paginate_by = 10
+    paginate_by = 20
 
     def dispatch(self, request, *args, **kwargs):
         self.category_slug = kwargs.get('category_slug')
@@ -71,7 +81,7 @@ class CategoryListView(ListView):
             category__slug=self.category_slug,
             is_published=True,
             pub_date__lte=datetime.now(),
-        ).order_by('-pub_date')
+        ).annotate(comment_count=Count('comments')).order_by('-pub_date')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -157,7 +167,7 @@ class ProfileListView(ListView):
     slug_field = 'username'
     slug_url_kwarg = 'username'
     template_name = 'blog/profile.html'
-    paginate_by = 10
+    paginate_by = 20
 
     def dispatch(self, request, *args, **kwargs):
         self.username = kwargs.get('username')
@@ -172,11 +182,8 @@ class ProfileListView(ListView):
             'location',
             'category',
             'author',
-        ).filter(
-            author=self.profile,
-            is_published=True,
-            pub_date__lte=datetime.now(),
-        ).order_by('-pub_date')
+        ).filter(author=self.profile, ).annotate(
+            comment_count=Count('comments')).order_by('-pub_date')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
