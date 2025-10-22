@@ -12,9 +12,10 @@ from django.views.generic import (
     DeleteView,
 )
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.decorators import login_required
 
-from .models import Post, Category
-from .forms import PostForm
+from .models import Post, Category, Comment
+from .forms import PostForm, CommentForm
 from users.forms import CustomUserChangeForm
 
 User = get_user_model()
@@ -40,9 +41,11 @@ class PostDetailView(DetailView):
     model = Post
     template_name = 'blog/detail.html'
 
-    def dispatch(self, request, *args, **kwargs):
-        self.pk = kwargs.get('pk')
-        return super().dispatch(request, *args, **kwargs)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = CommentForm()
+        context['comments'] = (self.object.comments.select_related('author'))
+        return context
 
 
 class CategoryListView(ListView):
@@ -109,16 +112,21 @@ class PostDeleteView(LoginRequiredMixin, DeleteView):
     success_url = reverse_lazy('blog:index')
 
     def dispatch(self, request, *args, **kwargs):
-        get_object_or_404(
+        self.post_obj = get_object_or_404(
             Post,
             pk=kwargs['pk'],
             author=request.user,
         )
+        if self.post_obj.author != request.user:
+            return redirect('blog:post_detail', pk=self.post_obj.pk)
         return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        return self.post_obj
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['form'] = self.get_form()
+        context['post'] = self.post_obj
         return context
 
 
@@ -134,7 +142,7 @@ class PostEditView(LoginRequiredMixin, UpdateView):
             author=request.user,
         )
         if post.author != request.user:
-            return redirect('blog:posts', pk=post.pk)
+            return redirect('blog:post_detail', pk=post.pk)
         return super().dispatch(request, *args, **kwargs)
 
     def get_success_url(self):
@@ -201,4 +209,85 @@ class ProfileEditView(LoginRequiredMixin, UpdateView):
         return reverse(
             'blog:profile',
             kwargs={'username': self.username},
+        )
+
+
+class CommentCreateView(LoginRequiredMixin, CreateView):
+    model = Comment
+    form_class = CommentForm
+    template_name = 'blog/comment.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.post_obj = get_object_or_404(Post, pk=kwargs['post_id'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.author = self.request.user
+        form.instance.post = self.post_obj
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse(
+            'blog:post_detail',
+            kwargs={'pk': self.post_obj.pk},
+        )
+
+
+class CommentEditView(LoginRequiredMixin, UpdateView):
+    model = Comment
+    form_class = CommentForm
+    template_name = 'blog/comment.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.comment = get_object_or_404(
+            Comment,
+            pk=kwargs['comment_id'],
+            author=request.user,
+        )
+        if self.comment.author != request.user:
+            return redirect('blog:post_detail', pk=self.comment.post_id)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        return self.comment
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['comment'] = self.comment
+        return context
+
+    def get_success_url(self):
+        return reverse(
+            'blog:post_detail',
+            kwargs={'pk': self.comment.post_id},
+        )
+
+
+class CommentDeleteView(LoginRequiredMixin, DeleteView):
+    model = Comment
+    template_name = 'blog/comment.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.comment = get_object_or_404(
+            Comment,
+            pk=kwargs['comment_id'],
+            author=request.user,
+        )
+        if self.comment.author != request.user:
+            return redirect('blog:post_detail', pk=self.comment.post_id)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        return self.comment
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = self.get_form()
+        context['comment'] = self.comment
+        return context
+
+    def get_success_url(self):
+        return reverse(
+            'blog:post_detail',
+            kwargs={'pk': self.comment.post_id},
         )
