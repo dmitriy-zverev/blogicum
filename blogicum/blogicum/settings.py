@@ -24,13 +24,17 @@ SECRET_KEY = 'django-insecure-)+(-%fzij^v$48kvee2ygr#9a*dh=umnk3+fdh&@93gk1441yk
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '127.0.0.1',
+    'localhost',
+]
 
 # Application definition
 
 INSTALLED_APPS = [
     'blog.apps.BlogConfig',
     'core.apps.CoreConfig',
+    'django_bootstrap5',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -38,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'pages.apps.PagesConfig',
+    'users.apps.UsersConfig',
     'debug_toolbar',
 ]
 
@@ -131,3 +136,9 @@ STATICFILES_DIRS = [
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 INTERNAL_IPS = ['127.0.0.1']
+
+CSRF_FAILURE_VIEW = 'core.views.csrf_failure'
+
+LOGIN_REDIRECT_URL = 'blog:index'
+
+LOGIN_URL = 'login'

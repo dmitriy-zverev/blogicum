@@ -1,58 +1,180 @@
 from datetime import datetime
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404, reverse
+from django.contrib.auth import get_user_model
+from django.urls import reverse_lazy
 from django.db.models import Q
+from django.views.generic import (
+    ListView,
+    DetailView,
+    CreateView,
+    UpdateView,
+    DeleteView,
+)
+from django.contrib.auth.mixins import LoginRequiredMixin
 
 from .models import Post, Category
+from .forms import PostForm
+from users.forms import CustomUserChangeForm
+
+User = get_user_model()
 
 
-def index(request):
+class PostListView(ListView):
+    model = Post
     template_name = 'blog/index.html'
-
-    current_datetime = datetime.now()
-
-    post_list = Post.objects.select_related('location', 'category',
-                                            'author').filter(
-                                                is_published=True,
-                                                category__is_published=True,
-                                                pub_date__lte=current_datetime,
-                                            )[:5]
-
-    context = {'post_list': post_list}
-
-    return render(request, template_name, context)
+    queryset = Post.objects.select_related(
+        'location',
+        'category',
+        'author',
+    ).filter(
+        is_published=True,
+        category__is_published=True,
+        pub_date__lte=datetime.now(),
+    )
+    ordering = '-pub_date'
+    paginate_by = 10
 
 
-def post_detail(request, id):
+class PostDetailView(DetailView):
+    model = Post
     template_name = 'blog/detail.html'
 
-    current_datetime = datetime.now()
-
-    queryset = Post.objects.select_related(
-        'category', 'location', 'author').filter(
-            Q(is_published=True) & Q(category__is_published=True)
-            & Q(pub_date__lte=current_datetime))
-    post = get_object_or_404(queryset, id=id)
-
-    context = {'post': post}
-
-    return render(request, template_name, context)
+    def dispatch(self, request, *args, **kwargs):
+        self.pk = kwargs.get('pk')
+        return super().dispatch(request, *args, **kwargs)
 
 
-def category_posts(request, category_slug):
+class CategoryListView(ListView):
+    model = Post
     template_name = 'blog/category.html'
+    paginate_by = 10
 
-    current_datetime = datetime.now()
+    def dispatch(self, request, *args, **kwargs):
+        self.category_slug = kwargs.get('category_slug')
+        self.category = get_object_or_404(
+            Category,
+            slug=self.category_slug,
+            is_published=True,
+        )
+        return super().dispatch(request, *args, **kwargs)
 
-    category = get_object_or_404(Category,
-                                 slug=category_slug,
-                                 is_published=True)
+    def get_queryset(self):
+        return Post.objects.select_related(
+            'category',
+            'location',
+            'author',
+        ).filter(
+            category__slug=self.category_slug,
+            is_published=True,
+            pub_date__lte=datetime.now(),
+        ).order_by('-pub_date')
 
-    post_list = Post.objects.select_related('category', 'location',
-                                            'author').filter(
-                                                category__slug=category_slug,
-                                                is_published=True,
-                                                pub_date__lte=current_datetime,
-                                            )
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['category'] = self.category
+        context['page_obj'] = self.get_queryset()
+        return context
 
-    context = {'post_list': post_list, 'category': category}
-    return render(request, template_name, context)
+
+class PostCreateView(LoginRequiredMixin, CreateView):
+    model = Post
+    form_class = PostForm
+    template_name = 'blog/create.html'
+    success_url = reverse_lazy('blog:index')
+
+    def form_valid(self, form):
+        form.instance.author = self.request.user
+        return super().form_valid(form)
+
+
+class PostUpdateView(LoginRequiredMixin, UpdateView):
+    model = Post
+    form_class = PostForm
+    template_name = 'blog/create.html'
+    success_url = reverse_lazy('blog:index')
+
+    def dispatch(self, request, *args, **kwargs):
+        get_object_or_404(
+            Post,
+            pk=kwargs['pk'],
+            author=request.user,
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+
+class PostDeleteView(LoginRequiredMixin, DeleteView):
+    model = Post
+    template_name = 'blog/create.html'
+    success_url = reverse_lazy('blog:index')
+
+    def dispatch(self, request, *args, **kwargs):
+        get_object_or_404(
+            Post,
+            pk=kwargs['pk'],
+            author=request.user,
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = self.get_form()
+        return context
+
+
+class ProfileDetailView(DetailView):
+    posts = None
+    model = User
+    slug_field = 'username'
+    slug_url_kwarg = 'username'
+    template_name = 'blog/profile.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.username = kwargs.get('username')
+        self.profile = get_object_or_404(
+            User,
+            username=self.username,
+        )
+        self.posts = Post.objects.select_related(
+            'location',
+            'category',
+            'author',
+        ).filter(
+            author=self.profile,
+            is_published=True,
+            pub_date__lte=datetime.now(),
+        ).order_by('-pub_date')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_obj'] = self.posts
+        context['profile'] = self.profile
+        return context
+
+
+class ProfileEditView(LoginRequiredMixin, UpdateView):
+    model = User
+    form_class = CustomUserChangeForm
+    template_name = 'blog/user.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.username = request.user
+        self.profile = get_object_or_404(
+            User,
+            username=self.username,
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        return self.request.user
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = self.get_form()
+        return context
+
+    def get_success_url(self):
+        return reverse(
+            'blog:profile',
+            kwargs={'username': self.username},
+        )
